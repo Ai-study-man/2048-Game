@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2048 Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .tile-2 { background-color: #eee4da; }
+        .tile-4 { background-color: #ede0c8; }
+        .tile-8 { background-color: #f2b179; }
+        .tile-16 { background-color: #f59563; }
+        .tile-32 { background-color: #f67c5f; }
+        .tile-64 { background-color: #f65e3b; }
+        .tile-128 { background-color: #edcf72; }
+        .tile-256 { background-color: #edcc61; }
+        .tile-512 { background-color: #edc850; }
+        .tile-1024 { background-color: #edc53f; }
+        .tile-2048 { background-color: #edc22e; }
+        
+        .tile {
+            font-weight: bold;
+            color: #776e65;
+        }
+        
+        .tile-8, .tile-16, .tile-32, .tile-64, .tile-128, 
+        .tile-256, .tile-512, .tile-1024, .tile-2048 {
+            color: #f9f6f2;
+        }
+        
+        @keyframes appear {
+            0% {
+                opacity: 0;
+                transform: scale(0);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        
+        .new-tile {
+            animation: appear 200ms ease 100ms;
+            animation-fill-mode: backwards;
+        }
+        
+        .modal {
+            transition: opacity 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-[#faf8ef] min-h-screen flex flex-col items-center justify-center font-sans">
+    <!-- Game Rules Modal -->
+    <div id="rulesModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 modal">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h2 class="text-2xl font-bold mb-4 text-center">2048 Game Rules</h2>
+            <div class="space-y-4">
+                <p><strong>Game Objective:</strong> Combine tiles to reach 2048!</p>
+                <p><strong>How to Play:</strong></p>
+                <ul class="list-disc pl-5 space-y-2">
+                    <li>Use arrow keys or swipe to move tiles</li>
+                    <li>When two tiles with the same number touch, they merge into one!</li>
+                    <li>After each move, a new tile (2 or 4) appears</li>
+                    <li>The game ends when the board is full and no moves are possible</li>
+                </ul>
+                <p><strong>Tips & Strategies:</strong></p>
+                <ul class="list-disc pl-5 space-y-2">
+                    <li>Keep your highest tile in a corner</li>
+                    <li>Build chains of descending numbers</li>
+                    <li>Plan ahead to avoid filling the board</li>
+                    <li>Try to merge larger tiles first</li>
+                </ul>
+            </div>
+            <div class="mt-6 flex justify-center">
+                <button id="closeRules" class="bg-[#8f7a66] text-white px-4 py-2 rounded font-bold hover:bg-[#9f8b77] transition">
+                    Let's Play!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Container -->
+    <div class="w-full max-w-md px-4">
+        <div class="flex justify-between items-center mb-4">
+            <h1 class="text-5xl font-bold text-[#776e65]">2048</h1>
+            <div class="flex space-x-4">
+                <div class="bg-[#bbada0] text-white text-center px-4 py-2 rounded">
+                    <div class="text-xs">SCORE</div>
+                    <div id="score" class="font-bold">0</div>
+                </div>
+                <button id="newGame" class="bg-[#8f7a66] text-white px-4 py-2 rounded font-bold hover:bg-[#9f8b77] transition">
+                    New Game
+                </button>
+                <button id="helpBtn" class="bg-[#8f7a66] text-white px-4 py-2 rounded font-bold hover:bg-[#9f8b77] transition">
+                    Help
+                </button>
+            </div>
+        </div>
+        
+        <div class="mb-2 text-[#776e65]">
+            <p>Join the tiles, get to <strong>2048!</strong></p>
+        </div>
+        
+        <div class="relative bg-[#bbada0] rounded-lg p-3 mb-4">
+            <div id="gameOver" class="absolute inset-0 bg-black bg-opacity-60 rounded-lg flex flex-col items-center justify-center hidden z-10">
+                <p class="text-white text-2xl font-bold mb-4">Game Over!</p>
+                <button id="tryAgain" class="bg-[#8f7a66] text-white px-4 py-2 rounded font-bold hover:bg-[#9f8b77] transition">
+                    Try Again
+                </button>
+            </div>
+            <div id="youWin" class="absolute inset-0 bg-black bg-opacity-60 rounded-lg flex flex-col items-center justify-center hidden z-10">
+                <p class="text-white text-2xl font-bold mb-4">You Win!</p>
+                <button id="keepPlaying" class="bg-[#8f7a66] text-white px-4 py-2 rounded font-bold hover:bg-[#9f8b77] transition">
+                    Keep Playing
+                </button>
+            </div>
+            
+            <div id="grid" class="grid grid-cols-4 gap-3">
+                <!-- Tiles will be generated here by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Game state
+            let grid = [];
+            let score = 0;
+            let gameOver = false;
+            let won = false;
+            let keepPlaying = false;
+            
+            // DOM elements
+            const gridContainer = document.getElementById('grid');
+            const scoreDisplay = document.getElementById('score');
+            const gameOverDisplay = document.getElementById('gameOver');
+            const youWinDisplay = document.getElementById('youWin');
+            const newGameBtn = document.getElementById('newGame');
+            const tryAgainBtn = document.getElementById('tryAgain');
+            const keepPlayingBtn = document.getElementById('keepPlaying');
+            const rulesModal = document.getElementById('rulesModal');
+            const closeRulesBtn = document.getElementById('closeRules');
+            const helpBtn = document.getElementById('helpBtn');
+            
+            // Show rules modal on page load
+            rulesModal.classList.remove('hidden');
+            
+            // Event listeners
+            closeRulesBtn.addEventListener('click', () => {
+                rulesModal.classList.add('hidden');
+            });
+            
+            helpBtn.addEventListener('click', () => {
+                rulesModal.classList.remove('hidden');
+            });
+            
+            newGameBtn.addEventListener('click', initGame);
+            tryAgainBtn.addEventListener('click', initGame);
+            keepPlayingBtn.addEventListener('click', () => {
+                youWinDisplay.classList.add('hidden');
+                keepPlaying = true;
+            });
+            
+            // Keyboard controls
+            document.addEventListener('keydown', (e) => {
+                if (gameOver) return;
+                
+                switch(e.key) {
+                    case 'ArrowUp':
+                        moveTiles('up');
+                        break;
+                    case 'ArrowDown':
+                        moveTiles('down');
+                        break;
+                    case 'ArrowLeft':
+                        moveTiles('left');
+                        break;
+                    case 'ArrowRight':
+                        moveTiles('right');
+                        break;
+                }
+            });
+            
+            // Touch controls for mobile
+            let touchStartX = 0;
+            let touchStartY = 0;
+            let touchEndX = 0;
+            let touchEndY = 0;
+            
+            document.addEventListener('touchstart', (e) => {
+                touchStartX = e.changedTouches[0].screenX;
+                touchStartY = e.changedTouches[0].screenY;
+            }, false);
+            
+            document.addEventListener('touchend', (e) => {
+                if (gameOver) return;
+                
+                touchEndX = e.changedTouches[0].screenX;
+                touchEndY = e.changedTouches[0].screenY;
+                
+                const diffX = touchStartX - touchEndX;
+                const diffY = touchStartY - touchEndY;
+                
+                // Check if the swipe was horizontal or vertical
+                if (Math.abs(diffX) > Math.abs(diffY)) {
+                    // Horizontal swipe
+                    if (diffX > 0) {
+                        moveTiles('left');
+                    } else {
+                        moveTiles('right');
+                    }
+                } else {
+                    // Vertical swipe
+                    if (diffY > 0) {
+                        moveTiles('up');
+                    } else {
+                        moveTiles('down');
+                    }
+                }
+            }, false);
+            
+            // Initialize the game
+            function initGame() {
+                // Reset game state
+                grid = Array(4).fill().map(() => Array(4).fill(0));
+                score = 0;
+                gameOver = false;
+                won = false;
+                keepPlaying = false;
+                
+                // Update UI
+                scoreDisplay.textContent = '0';
+                gameOverDisplay.classList.add('hidden');
+                youWinDisplay.classList.add('hidden');
+                
+                // Generate initial tiles
+                addRandomTile();
+                addRandomTile();
+                
+                // Render the grid
+                renderGrid();
+            }
+            
+            // Add a random tile (2 or 4) to an empty cell
+            function addRandomTile() {
+                const emptyCells = [];
+                
+                // Find all empty cells
+                for (let row = 0; row < 4; row++) {
+                    for (let col = 0; col < 4; col++) {
+                        if (grid[row][col] === 0) {
+                            emptyCells.push({ row, col });
+                        }
+                    }
+                }
+                
+                // If there are empty cells, add a new tile
+                if (emptyCells.length > 0) {
+                    const { row, col } = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+                    grid[row][col] = Math.random() < 0.9 ? 2 : 4;
+                }
+            }
+            
+            // Render the grid
+            function renderGrid() {
+                gridContainer.innerHTML = '';
+                
+                // Create cells for the grid
+                for (let row = 0; row < 4; row++) {
+                    for (let col = 0; col < 4; col++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'w-full h-20 bg-[#cdc1b4] rounded flex items-center justify-center text-2xl font-bold';
+                        
+                        if (grid[row][col] !== 0) {
+                            const tile = document.createElement('div');
+                            tile.className = `w-full h-full rounded flex items-center justify-center tile tile-${grid[row][col]} new-tile`;
+                            tile.textContent = grid[row][col];
+                            cell.appendChild(tile);
+                        }
+                        
+                        gridContainer.appendChild(cell);
+                    }
+                }
+            }
+            
+            // Move tiles in the specified direction
+            function moveTiles(direction) {
+                let moved = false;
+                const oldGrid = JSON.parse(JSON.stringify(grid));
+                
+                // Process the grid based on direction
+                switch(direction) {
+                    case 'up':
+                        for (let col = 0; col < 4; col++) {
+                            const column = [grid[0][col], grid[1][col], grid[2][col], grid[3][col]];
+                            const processed = processLine(column);
+                            
+                            for (let row = 0; row < 4; row++) {
+                                grid[row][col] = processed[row];
+                            }
+                        }
+                        break;
+                    case 'down':
+                        for (let col = 0; col < 4; col++) {
+                            const column = [grid[3][col], grid[2][col], grid[1][col], grid[0][col]];
+                            const processed = processLine(column);
+                            
+                            for (let row = 0; row < 4; row++) {
+                                grid[3 - row][col] = processed[row];
+                            }
+                        }
+                        break;
+                    case 'left':
+                        for (let row = 0; row < 4; row++) {
+                            grid[row] = processLine(grid[row]);
+                        }
+                        break;
+                    case 'right':
+                        for (let row = 0; row < 4; row++) {
+                            const reversed = [...grid[row]].reverse();
+                            const processed = processLine(reversed);
+                            grid[row] = processed.reverse();
+                        }
+                        break;
+                }
+                
+                // Check if the grid changed
+                for (let row = 0; row < 4; row++) {
+                    for (let col = 0; col < 4; col++) {
+                        if (grid[row][col] !== oldGrid[row][col]) {
+                            moved = true;
+                            break;
+                        }
+                    }
+                    if (moved) break;
+                }
+                
+                // If tiles moved, add a new tile and check game status
+                if (moved) {
+                    addRandomTile();
+                    renderGrid();
+                    checkGameStatus();
+                }
+            }
+            
+            // Process a single line (row or column) for movement and merging
+            function processLine(line) {
+                // Remove zeros
+                let filtered = line.filter(cell => cell !== 0);
+                let result = [];
+                
+                // Merge tiles
+                for (let i = 0; i < filtered.length; i++) {
+                    if (i < filtered.length - 1 && filtered[i] === filtered[i + 1]) {
+                        const merged = filtered[i] * 2;
+                        result.push(merged);
+                        score += merged;
+                        scoreDisplay.textContent = score;
+                        i++; // Skip next tile as it's merged
+                        
+                        // Check for win condition
+                        if (merged === 2048 && !won && !keepPlaying) {
+                            won = true;
+                            youWinDisplay.classList.remove('hidden');
+                        }
+                    } else {
+                        result.push(filtered[i]);
+                    }
+                }
+                
+                // Add zeros to fill the line
+                while (result.length < 4) {
+                    result.push(0);
+                }
+                
+                return result;
+            }
+            
+            // Check if the game is over
+            function checkGameStatus() {
+                // Check if there are any empty cells
+                for (let row = 0; row < 4; row++) {
+                    for (let col = 0; col < 4; col++) {
+                        if (grid[row][col] === 0) {
+                            return; // Game is not over
+                        }
+                    }
+                }
+                
+                // Check if any adjacent tiles can be merged
+                for (let row = 0; row < 4; row++) {
+                    for (let col = 0; col < 4; col++) {
+                        // Check right neighbor
+                        if (col < 3 && grid[row][col] === grid[row][col + 1]) {
+                            return; // Game is not over
+                        }
+                        // Check bottom neighbor
+                        if (row < 3 && grid[row][col] === grid[row + 1][col]) {
+                            return; // Game is not over
+                        }
+                    }
+                }
+                
+                // If we get here, the game is over
+                gameOver = true;
+                gameOverDisplay.classList.remove('hidden');
+            }
+            
+            // Start the game
+            initGame();
+        });
+    </script>
+<p style="border-radius: 8px; text-align: center; font-size: 12px; color: #fff; margin-top: 16px;position: fixed; left: 8px; bottom: 8px; z-index: 10; background: rgba(0, 0, 0, 0.8); padding: 4px 8px;">Made with <img src="https://enzostvs-deepsite.hf.space/logo.svg" alt="DeepSite Logo" style="width: 16px; height: 16px; vertical-align: middle;display:inline-block;margin-right:3px;filter:brightness(0) invert(1);"><a href="https://enzostvs-deepsite.hf.space" style="color: #fff;text-decoration: underline;" target="_blank" >DeepSite</a> - 🧬 <a href="https://enzostvs-deepsite.hf.space?remix=ljy5946/2048-game" style="color: #fff;text-decoration: underline;" target="_blank" >Remix</a></p></body>
+</html>
